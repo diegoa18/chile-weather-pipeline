@@ -5,3 +5,7 @@ psycopg2-binary
 python-dotenv
 apache-airflow
 schedule
+matplotlib
+numpy
+scikit-learn
+joblib
