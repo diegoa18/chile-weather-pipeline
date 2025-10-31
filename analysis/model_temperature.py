@@ -1,10 +1,15 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import joblib
 import json
 import os
+try:
+    from xgboost import XGBRegressor
+    MODEL_CLASS = "xgb"
+except Exception:
+    from sklearn.ensemble import RandomForestRegressor
+    MODEL_CLASS = "rf"
 
 def prepare_training_data(df):
 
@@ -13,49 +18,103 @@ def prepare_training_data(df):
 
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["temp_avg"])
+    df = df.sort_values("date")
 
-    df["day_number"] = (df["date"] - df["date"].min()).dt.days
+    feature_cols = [
+        "precipitation",
+        "windspeed_10m_max",
+        "shortwave_radiation_sum",
+        "et0_fao_evapotranspiration",
+        "humidity_avg",
+        "dew_point_avg",
+        "cloud_cover_mean",
+        "surface_pressure",
+        "solar_energy",
+        "temp_range"
+    ]
 
-    x = df[["day_number"]]
-    y = df["temp_avg"]
 
-    return x, y, df
+    available_features = [c for c in feature_cols if c in df.columns]
+    missing_features = [c for c in feature_cols if c not in df.columns]
+    if missing_features:
+        print(f"las columnas que faltan son {missing_features}")
 
-def train_temperature_model(x, y):
-    model = LinearRegression()
-    model.fit(x, y)
+    X = df[available_features].copy()
+    y = df["temp_avg"].copy()
+
+    X = X.fillna(X.mean())
+
+    df.attrs = dict(df.attrs)
+    df.attrs["used_features"] = available_features
+
+    return X, y, df
+
+
+def train_temperature_model(X, y):
+    if MODEL_CLASS == "xgb":
+        model = XGBRegressor(
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            verbosity=0
+        )
+    else:
+        from sklearn.ensemble import RandomForestRegressor
+        model = RandomForestRegressor(n_estimators=200, max_depth=12, random_state=42)
+
+    model.fit(X, y)
     return model
+
 
 def evaluate_model(model, x, y):
     preds = model.predict(x)
     mae = mean_absolute_error(y, preds)
     rmse = mean_squared_error(y, preds) ** 0.5
-    return{"MAE": round(mae, 3), "RMSE": round(rmse, 3)}
+    return{"MAE": round(mae, 2), "RMSE": round(rmse, 2)}
 
-def save_model(city_name, model):
+def save_model(city_name, model, features):
     os.makedirs("analysis/models", exist_ok=True)
     path = f"analysis/models/{city_name.lower()}_temp_model.pkl"
-    joblib.dump(model, path)
+    joblib.dump({"model": model, "features": features, "model_class": MODEL_CLASS}, path)
     return path
 
-def forecast_future(model, df, days_ahead=7):
-    last_day = df["day_number"].max()
-    future_days = np.arange(last_day + 1, last_day + days_ahead + 1).reshape(-1, 1)
+def forecast_future(model_obj, df, days_ahead=3):
+    if isinstance(model_obj, dict):
+        model = model_obj.get("model")
+        used_features = model_obj.get("features", [])
+    else:
+        model = model_obj
+        used_features = df.attrs.get("used_features", [])
 
-    preds = model.predict(future_days).ravel()  
+    if not used_features:
+        raise ValueError("no hay features usadas para la prediccion")
 
-    future_dates = pd.date_range(
-        start=df["date"].max() + pd.Timedelta(days=1),
-        periods=days_ahead
-    )
+
+    last_row = df.iloc[-1]
+    base = last_row[used_features]
+    X_future = pd.DataFrame([base.values for _ in range(days_ahead)], columns=used_features)
+
+    for col in used_features:
+        if col not in X_future.columns:
+            X_future[col] = 0
+
+    X_future = X_future.fillna(X_future.mean())
+
+
+    preds = model.predict(X_future)
+    future_dates = pd.date_range(start=df["date"].max() + pd.Timedelta(days=1), periods=days_ahead)
 
     forecast_df = pd.DataFrame({
         "date": future_dates,
-        "predicted_temp_avg": preds.round(2)
+        "predicted_temp_avg": np.round(preds, 2)
     })
 
+    
     return forecast_df
+
 
 def save_forecast(city_name, forecast_df, metrics):
     os.makedirs("analysis/results", exist_ok=True)

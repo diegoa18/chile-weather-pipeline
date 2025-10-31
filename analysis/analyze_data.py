@@ -11,7 +11,7 @@ def load_clean_data(city_name):
 def compute_weather_metrics(df):
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-    metrics={
+    metrics = {
         "date_range": {
             "start": str(df["date"].min().date()),
             "end": str(df["date"].max().date())
@@ -19,15 +19,24 @@ def compute_weather_metrics(df):
         "temperature": {
             "avg": round(df["temp_avg"].mean(), 2),
             "max_mean": round(df["temp_max"].mean(), 2),
-            "min_mean": round(df["temp_min"].mean(), 2)
+            "min_mean": round(df["temp_min"].mean(), 2),
+            "range_avg": round(df["temp_range"].mean(), 2) if "temp_range" in df.columns else None
         },
         "precipitation": {
             "total": round(df["precipitation"].sum(), 2),
             "avg_daily": round(df["precipitation"].mean(), 2)
         },
+        "humidity": {
+            "avg": round(df["humidity_avg"].mean(), 2) if "humidity_avg" in df.columns else None,
+            "dew_point_avg": round(df["dew_point_avg"].mean(), 2) if "dew_point_avg" in df.columns else None
+        },
+        "solar": {
+            "energy_avg": round(df["solar_energy"].mean(), 2) if "solar_energy" in df.columns else None
+        },
         "records": len(df)
     }
     return metrics
+
 
 def save_metrics(city_name, metrics):
     os.makedirs("analysis/results", exist_ok=True)

@@ -1,3 +1,5 @@
+# main.py
+import os
 from extract.extract_data import get_weather_data, save_weather_data
 from transform.transform_data import load_raw_data, clean_and_transform, save_processed_data
 from analysis.analyze_data import load_clean_data, compute_weather_metrics, save_metrics
@@ -10,44 +12,53 @@ from analysis.model_temperature import (
     save_forecast
 )
 from load.load_data import init_db, save_to_database
-import pandas as pd
+
+CITY_NAME = "Temuco"
+LATITUDE = -38.7366
+LONGITUDE = -72.595
+DAYS_HISTORY = 30  # más días mejora el training
 
 def main():
-    cities = {
-        "Temuco": (-38.7397, -72.5984),
-        "Santiago": (-33.4569, -70.6483),
-        "Valparaiso": (-33.0458, -71.6197),
-        "Antofagasta": (-23.6500, -70.4000),
-        "Punta Arenas": (-53.1638, -70.9171)
-    }
+    print("=== INICIANDO PIPELINE CLIMÁTICA ===")
 
+    # 1. Extracción
+    df_raw = get_weather_data(LATITUDE, LONGITUDE, DAYS_HISTORY)
+    save_weather_data(df_raw, CITY_NAME)
+
+    # 2. Transformación
+    df_raw_loaded = load_raw_data(CITY_NAME)
+    df_clean = clean_and_transform(df_raw_loaded)
+    save_processed_data(df_clean, CITY_NAME)
+
+    # 3. Análisis descriptivo
+    df_loaded = load_clean_data(CITY_NAME)
+    metrics = compute_weather_metrics(df_loaded)
+    metrics_path = save_metrics(CITY_NAME, metrics)
+    print(f"✅ Métricas guardadas en {metrics_path}")
+
+    # 4. Preparar datos y entrenar
+    X, y, df_train = prepare_training_data(df_loaded)
+    model = train_temperature_model(X, y)
+
+    # 5. Guardar modelo con features
+    model_path = save_model(CITY_NAME, model, X.columns.tolist())
+    print(f"✅ Modelo entrenado y guardado en {model_path}")
+
+    # 6. Evaluar
+    model_metrics = evaluate_model(model, X, y)
+    print(f"📊 Métricas del modelo: {model_metrics}")
+
+    # 7. Pronosticar
+    forecast_df = forecast_future({"model": model, "features": X.columns.tolist()}, df_train, days_ahead=5)
+    forecast_path, model_metrics_path = save_forecast(CITY_NAME, forecast_df, model_metrics)
+    print(f"🌤️ Pronóstico guardado en {forecast_path}")
+
+    # 8. Persistir datos en DB
     engine = init_db()
+    save_to_database(df_clean, f"{CITY_NAME.lower()}_weather", engine)
+    print("💾 Datos guardados en base local SQLite")
 
-    for city, (lat, lon) in cities.items():
-        print(f"procesando datos de {city}...")
+    print("\n✅ Pipeline completado con éxito.")
 
-        df_raw = get_weather_data(lat, lon, days=14)
-        save_weather_data(df_raw, city)
-
-        df_clean = clean_and_transform(df_raw)
-        save_processed_data(df_clean, city)
-
-        df_clean["city"] = city
-        df_clean["latitude"] = lat
-        df_clean["longitude"] = lon
-
-        save_to_database(df_clean, "weather_data", engine)
-
-        metrics = compute_weather_metrics(df_clean)
-        metrics_path = save_metrics(city, metrics)
-
-        x, y, df_train = prepare_training_data(df_clean)
-        model = train_temperature_model(x, y)
-        model_path = save_model(city, model)
-
-        model_matrics = evaluate_model(model, x, y)
-        forecast_df = forecast_future(model, df_train, days_ahead=5)
-        save_forecast(city, forecast_df, model_matrics)
-
-        print(f"{city} ha sido procesada :v\n")
-
+if __name__ == "__main__":
+    main()
