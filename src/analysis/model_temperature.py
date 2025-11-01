@@ -76,8 +76,8 @@ def evaluate_model(model, x, y):
     return{"MAE": round(mae, 2), "RMSE": round(rmse, 2)}
 
 def save_model(city_name, model, features):
-    os.makedirs("analysis/models", exist_ok=True)
-    path = f"analysis/models/{city_name.lower()}_temp_model.pkl"
+    os.makedirs("data/models", exist_ok=True)
+    path = f"data/models/{city_name.lower()}_temp_model.pkl"
     joblib.dump({"model": model, "features": features, "model_class": MODEL_CLASS}, path)
     return path
 
@@ -117,12 +117,12 @@ def forecast_future(model_obj, df, days_ahead=3):
 
 
 def save_forecast(city_name, forecast_df, metrics):
-    os.makedirs("analysis/results", exist_ok=True)
+    os.makedirs("data/results", exist_ok=True)
 
-    forecast_path = f"analysis/results/{city_name.lower()}_forecast.csv"
+    forecast_path = f"data/results/{city_name.lower()}_forecast.csv"
     forecast_df.to_csv(forecast_path, index=False)
 
-    metrics_path = f"analysis/results/{city_name.lower()}_model_metrics.json"
+    metrics_path = f"data/results/{city_name.lower()}_model_metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4, ensure_ascii=False)
 
