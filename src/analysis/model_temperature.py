@@ -1,9 +1,12 @@
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.model_selection import train_test_split
 import joblib
 import json
 import os
+from src.utils.paths import get_city_path
+
 try:
     from xgboost import XGBRegressor
     MODEL_CLASS = "xgb"
@@ -11,10 +14,8 @@ except Exception:
     from sklearn.ensemble import RandomForestRegressor
     MODEL_CLASS = "rf"
 
-from src.utils.paths import get_city_path
 
 def prepare_training_data(df):
-
     if df.empty:
         raise ValueError("el DF esta vacio")
 
@@ -35,11 +36,10 @@ def prepare_training_data(df):
         "temp_range"
     ]
 
-
     available_features = [c for c in feature_cols if c in df.columns]
     missing_features = [c for c in feature_cols if c not in df.columns]
     if missing_features:
-        print(f"las columnas que faltan son {missing_features}")
+        print(f"faltan columnas: {missing_features}")
 
     X = df[available_features].copy()
     y = df["temp_avg"].copy()
@@ -70,17 +70,27 @@ def train_temperature_model(X, y):
     model.fit(X, y)
     return model
 
+def evaluate_model(model, X, y):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, shuffle=False)
 
-def evaluate_model(model, x, y):
-    preds = model.predict(x)
-    mae = mean_absolute_error(y, preds)
-    rmse = mean_squared_error(y, preds) ** 0.5
-    return{"MAE": round(mae, 2), "RMSE": round(rmse, 2)}
+    model.fit(X_train, y_train)
+    preds = model.predict(X_test)
+
+    mae = mean_absolute_error(y_test, preds)
+    rmse = mean_squared_error(y_test, preds) ** 0.5
+
+    return {"MAE": round(mae, 2), "RMSE": round(rmse, 2)}
 
 def save_model(city_name, model, features):
     folder = get_city_path(city_name, "models")
     path = os.path.join(folder, f"{city_name.lower()}_temp_model.pkl")
-    joblib.dump({"model": model, "features": features}, path)
+
+    joblib.dump({
+        "model": model,
+        "features": features,
+        "model_class": MODEL_CLASS
+    }, path)
+
     return path
 
 def forecast_future(model_obj, df, days_ahead=3):
@@ -94,17 +104,17 @@ def forecast_future(model_obj, df, days_ahead=3):
     if not used_features:
         raise ValueError("no hay features usadas para la prediccion")
 
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.sort_values("date")
 
-    last_row = df.iloc[-1]
-    base = last_row[used_features]
-    X_future = pd.DataFrame([base.values for _ in range(days_ahead)], columns=used_features)
+    window = min(5, len(df))
+    recent_mean = df[used_features].tail(window).mean()
 
-    for col in used_features:
-        if col not in X_future.columns:
-            X_future[col] = 0
-
-    X_future = X_future.fillna(X_future.mean())
-
+    X_future = pd.DataFrame(
+        [recent_mean.values + np.random.normal(0, 0.05, size=len(recent_mean)) for _ in range(days_ahead)],
+        columns=used_features
+    )
 
     preds = model.predict(X_future)
     future_dates = pd.date_range(start=df["date"].max() + pd.Timedelta(days=1), periods=days_ahead)
@@ -114,7 +124,6 @@ def forecast_future(model_obj, df, days_ahead=3):
         "predicted_temp_avg": np.round(preds, 2)
     })
 
-    
     return forecast_df
 
 
@@ -129,5 +138,3 @@ def save_forecast(city_name, forecast_df, metrics):
         json.dump(metrics, f, indent=4, ensure_ascii=False)
 
     return forecast_path, metrics_path
-
-
