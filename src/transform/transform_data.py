@@ -1,10 +1,14 @@
 import pandas as pd
 import os
+from src.utils.paths import get_city_path
 
 def load_raw_data(city_name):
-    file_path = f"data/raw/{city_name.lower()}_weather_raw.csv"
+    folder = get_city_path(city_name, "raw")
+    file_path = os.path.join(folder, f"{city_name.lower()}_weather_raw.csv")
+
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"no existe {file_path}")
+
     return pd.read_csv(file_path)
 
 def clean_and_transform(df):
@@ -67,7 +71,6 @@ def clean_and_transform(df):
     return df
 
 def save_processed_data(df, city_name):
-    os.makedirs("data/processed", exist_ok=True)
-    file_path = f"data/processed/{city_name.lower()}_weather_clean.csv"
+    folder = get_city_path(city_name, "processed")
+    file_path = os.path.join(folder, f"{city_name.lower()}_weather_clean.csv")
     df.to_csv(file_path, index=False)
-    print(f"datos limpios guardados en {file_path}")

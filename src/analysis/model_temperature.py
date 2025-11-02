@@ -11,6 +11,8 @@ except Exception:
     from sklearn.ensemble import RandomForestRegressor
     MODEL_CLASS = "rf"
 
+from src.utils.paths import get_city_path
+
 def prepare_training_data(df):
 
     if df.empty:
@@ -76,9 +78,9 @@ def evaluate_model(model, x, y):
     return{"MAE": round(mae, 2), "RMSE": round(rmse, 2)}
 
 def save_model(city_name, model, features):
-    os.makedirs("data/models", exist_ok=True)
-    path = f"data/models/{city_name.lower()}_temp_model.pkl"
-    joblib.dump({"model": model, "features": features, "model_class": MODEL_CLASS}, path)
+    folder = get_city_path(city_name, "models")
+    path = os.path.join(folder, f"{city_name.lower()}_temp_model.pkl")
+    joblib.dump({"model": model, "features": features}, path)
     return path
 
 def forecast_future(model_obj, df, days_ahead=3):
@@ -117,12 +119,12 @@ def forecast_future(model_obj, df, days_ahead=3):
 
 
 def save_forecast(city_name, forecast_df, metrics):
-    os.makedirs("data/results", exist_ok=True)
+    folder = get_city_path(city_name, "results")
 
-    forecast_path = f"data/results/{city_name.lower()}_forecast.csv"
+    forecast_path = os.path.join(folder, f"{city_name.lower()}_forecast.csv")
     forecast_df.to_csv(forecast_path, index=False)
 
-    metrics_path = f"data/results/{city_name.lower()}_model_metrics.json"
+    metrics_path = os.path.join(folder, f"{city_name.lower()}_model_metrics.json")
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4, ensure_ascii=False)
 

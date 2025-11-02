@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import os
+from src.utils.paths import get_city_path
 
 def load_clean_data(city_name):
     file_path = f"data/processed/{city_name.lower()}_weather_clean.csv"
@@ -39,8 +40,8 @@ def compute_weather_metrics(df):
 
 
 def save_metrics(city_name, metrics):
-    os.makedirs("data/results", exist_ok=True)
-    file_path = f"data/results/{city_name.lower()}_metrics.json"
+    folder = get_city_path(city_name, "results")
+    file_path = os.path.join(folder, f"{city_name.lower()}_metrics.json")
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4, ensure_ascii=False)
     return file_path
