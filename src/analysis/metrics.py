@@ -1,16 +1,12 @@
-import pandas as pd
 import json
-import os
+import pandas as pd
 from src.utils.paths import get_city_path
 
-def load_clean_data(city_name):
-    file_path = f"data/processed/{city_name.lower()}_weather_clean.csv"
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"no existe el archivo limpio {file_path}")
-    return pd.read_csv(file_path)
-
-def compute_weather_metrics(df):
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+def compute_weather_metrics(df: pd.DataFrame) -> dict:
+    """calculo de metricas claves del DF del clima"""
+    #formato de tiempo
+    if not pd.api.types.is_datetime64_any_dtype(df["date"]):
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
     metrics = {
         "date_range": {
@@ -34,14 +30,17 @@ def compute_weather_metrics(df):
         "solar": {
             "energy_avg": round(df["solar_energy"].mean(), 2) if "solar_energy" in df.columns else None
         },
-        "records": len(df)
+        "records_count": len(df)
     }
     return metrics
 
-
-def save_metrics(city_name, metrics):
+def save_metrics(city_name: str, metrics: dict) -> str:
+    """GUARDAR METRICAS EN JSON (POR AHORA)"""
     folder = get_city_path(city_name, "results")
-    file_path = os.path.join(folder, f"{city_name.lower()}_metrics.json")
+    file_path = folder / f"{city_name.lower()}_metrics.json"
+    
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4, ensure_ascii=False)
-    return file_path
+    
+    print(f"metricas guardadas en: {file_path}")
+    return str(file_path)
