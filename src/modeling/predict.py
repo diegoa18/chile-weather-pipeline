@@ -25,7 +25,21 @@ def load_model(city_name: str):
     if not path.exists():
         raise FileNotFoundError(f"no se encontro modelo para {city_name} en {path}")
 
-    return joblib.load(path)
+    payload = joblib.load(path)
+    if isinstance(payload, dict) and "model" in payload:
+        return payload["model"]
+    return payload
+
+
+def load_features(city_name: str) -> list[str]:
+    folder = get_city_path(city_name, "results")
+    path = folder / f"{city_slug(city_name)}_features.json"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"no se encontraron features para {city_name} en {path}"
+        )
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)["features"]
 
 
 def _build_feature_vector(
@@ -150,16 +164,17 @@ def forecast_future(
     return pd.DataFrame(predictions)
 
 
-def save_forecast(city_name: str, forecast_df: pd.DataFrame, metrics: dict) -> str:
+def save_forecast(city_name: str, forecast_df: pd.DataFrame, metrics: dict | None = None) -> str:
     folder = get_city_path(city_name, "results")
 
     slug = city_slug(city_name)
     csv_path = folder / f"{slug}_forecast.csv"
     forecast_df.to_csv(csv_path, index=False)
 
-    json_path = folder / f"{slug}_model_metrics.json"
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=4, cls=NumpyEncoder)
+    if metrics:
+        json_path = folder / f"{slug}_model_metrics.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=4, cls=NumpyEncoder)
 
     logger.info("pronostico guardado en: %s", csv_path)
     return str(csv_path)

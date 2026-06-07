@@ -121,6 +121,15 @@ def save_model(city_name: str, model, features: list) -> str:
     return str(path)
 
 
+def save_metrics_json(city_name: str, metrics: dict) -> str:
+    folder = get_city_path(city_name, "results")
+    path = folder / f"{city_slug(city_name)}_model_metrics.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=4, cls=NumpyEncoder)
+    logger.info("metricas guardadas en: %s", path)
+    return str(path)
+
+
 def save_feature_metadata(city_name: str, features: list) -> str:
     """guardar la metadata de las features"""
     folder = get_city_path(city_name, "results")

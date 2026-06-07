@@ -4,6 +4,7 @@ clase principal que coordina el flujo de datos: ETL -> analisis -> modelado -> v
 """
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
@@ -11,26 +12,34 @@ from sklearn.metrics import mean_absolute_error
 from src.analysis.exploratory import residual_analysis, run_full_eda, save_eda_report
 from src.analysis.importance import run_feature_importance, save_importance_report
 from src.analysis.metrics import compute_weather_metrics, save_metrics
-from src.config.settings import DEFAULT_FORECAST_DAYS
 from src.etl.extract import fetch_historical_data, save_raw_data
 from src.etl.load import init_db_connection, save_to_database
 from src.etl.transform import clean_and_transform, load_raw_data, save_processed_data
-from src.modeling.predict import forecast_future, save_forecast
 from src.modeling.train import (
     evaluate_model,
     prepare_training_data,
     save_feature_metadata,
+    save_metrics_json,
     save_model,
     train_temperature_model,
 )
-from src.utils.paths import city_slug
+from src.utils.paths import city_slug, get_city_path
 from src.visualization.plots import (
-    plot_forecast,
     plot_precipitation,
     plot_temperature_trends,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def load_clean_data(city_name: str) -> pd.DataFrame:
+    folder = get_city_path(city_name, "processed")
+    path: Path = folder / f"{city_slug(city_name)}_weather_clean.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            "ejecuta 'train' primero — no hay datos procesados para %s", city_name
+        )
+    return pd.read_csv(path)
 
 
 class WeatherPipeline:
@@ -65,7 +74,7 @@ class WeatherPipeline:
         plot_precipitation(df_clean, self.city)
         return metrics, eda
 
-    def run_modeling(self, df_clean, days_ahead=DEFAULT_FORECAST_DAYS):
+    def run_modeling(self, df_clean):
         X, y, features = prepare_training_data(df_clean)
 
         model = train_temperature_model(X, y)
@@ -94,10 +103,6 @@ class WeatherPipeline:
         metrics["baseline_persistence_MAE"] = round(float(baseline_mae), 2)
         metrics["residuals"] = residual_report
 
-        # forecast recursivo
-        model_payload = {"model": model, "features": features}
-        forecast_df = forecast_future(model_payload, df_clean, days_ahead=days_ahead)
-        save_forecast(self.city, forecast_df, metrics)
-        plot_forecast(forecast_df, self.city)
+        save_metrics_json(self.city, metrics)
 
-        return metrics, forecast_df
+        return metrics
