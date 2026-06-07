@@ -1,33 +1,32 @@
 """
-ENTRY POINT TEMPORAL, EL PIPELINE SE TESTEA CON X CIUDADES
+ENTRY POINT PRINCIPAL
+ejecuta la pipeline completa para ciudades chilenas
 """
 
+import logging
+
+from src.config.logger import setup_logging
+from src.config.settings import CITIES, DEFAULT_DAYS_BACK
 from src.pipeline import WeatherPipeline
 
-if __name__ == "__main__":
-    #ciudades objetivo
-    CHILE_CITIES = {
-        "Santiago": (-33.45, -70.66),
-        "Concepcion": (-36.82, -73.05),
-        "Puerto Montt": (-41.47, -72.94),
-        "Antofagasta": (-23.65, -70.40) #antofa pa variar lol
-    }
+setup_logging()
+logger = logging.getLogger(__name__)
 
-    for city, (lat, lon) in CHILE_CITIES.items():
+if __name__ == "__main__":
+    for city, (lat, lon) in CITIES.items():
         try:
+            logger.info("=" * 50)
+            logger.info("Procesando ciudad: %s", city)
+            logger.info("=" * 50)
+
             pipeline = WeatherPipeline(city, lat, lon)
-            
-            #ETL
-            df_clean = pipeline.run_etl(days_back=30)
-            
+
+            df_clean = pipeline.run_etl(days_back=DEFAULT_DAYS_BACK)
+
             if df_clean is not None:
-                #analisis
                 pipeline.run_analysis(df_clean)
-                
-                #modelado
                 pipeline.run_modeling(df_clean)
-            
+
         except Exception as e:
-            print(f"[ERROR] {city}: {e}")
-            #continuamos con la siguiente ciudad
+            logger.exception("Error procesando %s: %s", city, e)
             continue

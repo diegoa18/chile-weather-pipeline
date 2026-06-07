@@ -1,5 +1,14 @@
 import pandas as pd
 
+FEATURE_LAGS = {
+    "temp_avg": [1, 3, 7],
+    "precipitation": [1, 3, 7],
+    "humidity_avg": [1, 3, 7],
+}
+
+ROLLING_WINDOWS = [3, 7]
+ROLLING_COLS = ["temp_avg", "precipitation"]
+
 
 def add_temporal_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
     df = df.copy()
@@ -11,13 +20,7 @@ def add_temporal_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
 
     created_features = []
 
-    lag_features = {
-        "temp_avg": [1, 3, 7],
-        "precipitation": [1, 3, 7],
-        "humidity_avg": [1, 3, 7],
-    }
-
-    for col, lags in lag_features.items():
+    for col, lags in FEATURE_LAGS.items():
         if col not in df.columns:
             continue
 
@@ -26,14 +29,11 @@ def add_temporal_features(df: pd.DataFrame) -> tuple[pd.DataFrame, list]:
             df[feature_name] = df[col].shift(lag)
             created_features.append(feature_name)
 
-    rolling_windows = [3, 7]
-    rolling_cols = ["temp_avg", "precipitation"]
-
-    for col in rolling_cols:
+    for col in ROLLING_COLS:
         if col not in df.columns:
             continue
 
-        for window in rolling_windows:
+        for window in ROLLING_WINDOWS:
             feature_name = f"{col}_rolling_{window}"
             df[feature_name] = df[col].rolling(window).mean()
             created_features.append(feature_name)

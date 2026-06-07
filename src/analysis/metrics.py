@@ -1,46 +1,60 @@
 import json
+import logging
+
 import pandas as pd
-from src.utils.paths import get_city_path
+
+from src.utils.paths import city_slug, get_city_path
+from src.utils.serializer import NumpyEncoder
+
+logger = logging.getLogger(__name__)
+
 
 def compute_weather_metrics(df: pd.DataFrame) -> dict:
-    """calculo de metricas claves del DF del clima"""
-    #formato de tiempo
+    # formato de tiempo
     if not pd.api.types.is_datetime64_any_dtype(df["date"]):
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
     metrics = {
         "date_range": {
             "start": str(df["date"].min().date()),
-            "end": str(df["date"].max().date())
+            "end": str(df["date"].max().date()),
         },
         "temperature": {
             "avg": round(df["temp_avg"].mean(), 2),
             "max_mean": round(df["temp_max"].mean(), 2),
             "min_mean": round(df["temp_min"].mean(), 2),
-            "range_avg": round(df["temp_range"].mean(), 2) if "temp_range" in df.columns else None
+            "range_avg": round(df["temp_range"].mean(), 2)
+            if "temp_range" in df.columns
+            else None,
         },
         "precipitation": {
             "total": round(df["precipitation"].sum(), 2),
-            "avg_daily": round(df["precipitation"].mean(), 2)
+            "avg_daily": round(df["precipitation"].mean(), 2),
         },
         "humidity": {
-            "avg": round(df["humidity_avg"].mean(), 2) if "humidity_avg" in df.columns else None,
-            "dew_point_avg": round(df["dew_point_avg"].mean(), 2) if "dew_point_avg" in df.columns else None
+            "avg": round(df["humidity_avg"].mean(), 2)
+            if "humidity_avg" in df.columns
+            else None,
+            "dew_point_avg": round(df["dew_point_avg"].mean(), 2)
+            if "dew_point_avg" in df.columns
+            else None,
         },
         "solar": {
-            "energy_avg": round(df["solar_energy"].mean(), 2) if "solar_energy" in df.columns else None
+            "radiation_avg": round(df["shortwave_radiation_sum"].mean(), 2)
+            if "shortwave_radiation_sum" in df.columns
+            else None
         },
-        "records_count": len(df)
+        "records_count": len(df),
     }
     return metrics
 
+
 def save_metrics(city_name: str, metrics: dict) -> str:
-    """GUARDAR METRICAS EN JSON (POR AHORA)"""
     folder = get_city_path(city_name, "results")
-    file_path = folder / f"{city_name.lower()}_metrics.json"
-    
+    file_path = folder / f"{city_slug(city_name)}_metrics.json"
+
     with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=4, ensure_ascii=False)
-    
-    print(f"metricas guardadas en: {file_path}")
+        json.dump(metrics, f, indent=4, ensure_ascii=False, cls=NumpyEncoder)
+
+    logger.info("metricas guardadas en: %s", file_path)
     return str(file_path)
